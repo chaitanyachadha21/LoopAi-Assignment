@@ -24,6 +24,7 @@ function simulateFetch(id) {
   });
 }
 
+
 setInterval(() => {
   if (jobQueue.length === 0) return;
 
@@ -127,7 +128,46 @@ app.get('/status/:id', (req, res) => {
   });
 });
 
-module.exports = app;
+const jobInterval = setInterval(() => {
+  if (jobQueue.length === 0) return;
+
+  jobQueue.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    return a.createdAt - b.createdAt;
+  });
+
+  const batchJobs = jobQueue.splice(0, 3);
+
+  batchJobs.forEach((job) => {
+    if (batchMap[job.batchId].status === 'yet_to_start') {
+      batchMap[job.batchId].status = 'triggered';
+    }
+
+    simulateFetch(job.id).then(() => {
+      const batch = batchMap[job.batchId];
+      batch.completed.push(job.id);
+
+      if (batch.completed.length === batch.ids.length) {
+        batch.status = 'completed';
+      }
+
+      const ingestion = ingestionStatusMap[job.ingestionId];
+      let allStatuses = ingestion.batches.map(b => batchMap[b.batch_id].status);
+
+      if (allStatuses.every(s => s === 'completed')) {
+        ingestion.status = 'completed';
+      } else if (allStatuses.some(s => s === 'triggered')) {
+        ingestion.status = 'triggered';
+      } else {
+        ingestion.status = 'yet_to_start';
+      }
+    });
+  });
+}, 5000);
+
+module.exports = { app, jobInterval };
 
 if (require.main === module) {
   const PORT = 5000;
@@ -135,3 +175,4 @@ if (require.main === module) {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 }
+

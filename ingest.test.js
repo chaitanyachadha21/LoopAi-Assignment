@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('./index');
+const { app, jobInterval } = require('./app');
 
 describe('Test Job Ingestion API', () => {
   let savedIngestionId;
@@ -42,5 +42,9 @@ describe('Test Job Ingestion API', () => {
     await request(app)
       .get('/status/invalid-id')
       .expect(404);
+  });
+
+  afterAll(() => {
+    clearInterval(jobInterval);
   });
 });
